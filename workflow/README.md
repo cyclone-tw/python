@@ -37,10 +37,11 @@
 # 2. 安裝 Python 和 Tkinter
 brew install python@3.12 python-tk@3.12
 
-# 3. 下載專案後執行
-chmod +x start.sh
-./start.sh
+# 3. 雙擊執行
+啟動工作區管理器.command
 ```
+
+> 💡 首次執行需右鍵 → 打開 → 確認允許
 
 #### 🪟 Windows
 
@@ -71,13 +72,14 @@ chmod +x start.sh
 
 ```
 workflow/
-├── workspace_manager.py   # 主程式
-├── workspaces.json        # 工作區設定檔 (自動生成)
-├── requirements.txt       # Python 依賴
-├── start.sh              # macOS/Linux 啟動腳本
-├── start.bat             # Windows 啟動腳本
-├── README.md             # 說明文件
-└── DEVLOG.md             # 開發日誌
+├── workspace_manager.py          # 主程式
+├── workspaces.json               # 工作區設定檔 (自動生成)
+├── requirements.txt              # Python 依賴
+├── 啟動工作區管理器.command       # macOS 一鍵啟動 (雙擊執行)
+├── start.bat                     # Windows 一鍵啟動 (雙擊執行)
+├── start.sh                      # Linux/終端機啟動腳本
+├── README.md                     # 說明文件
+└── DEVLOG.md                     # 開發日誌
 ```
 
 ---
