@@ -8,8 +8,21 @@ import customtkinter as ctk
 import json
 import subprocess
 import webbrowser
+import platform
+import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+
+# 嘗試載入拖曳支援 (Windows 優先)
+DND_ENABLED = False
+TkinterDnD = None
+
+if platform.system() == "Windows":
+    try:
+        from tkinterdnd2 import TkinterDnD, DND_FILES
+        DND_ENABLED = True
+    except ImportError:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -283,20 +296,56 @@ class EditDialog(ctk.CTkToplevel):
         items: List[str], 
         key: str
     ):
-        """建立多行文字輸入區塊"""
+        """建立多行文字輸入區塊 (支援拖曳)"""
         
         section_frame = ctk.CTkFrame(parent, fg_color="transparent")
         section_frame.pack(fill="x", pady=(15, 5))
         
+        # 標題列 (含瀏覽按鈕)
+        header_frame = ctk.CTkFrame(section_frame, fg_color="transparent")
+        header_frame.pack(fill="x")
+        
         label_widget = ctk.CTkLabel(
-            section_frame,
+            header_frame,
             text=label,
             font=Fonts.BODY,
             text_color=Colors.ON_SURFACE_VARIANT
         )
-        label_widget.pack(anchor="w")
+        label_widget.pack(side="left")
         
-        # 使用 CTkTextbox 支援多行輸入
+        # 瀏覽按鈕 (只有資料夾和檔案顯示)
+        if key in ["folders", "files"]:
+            browse_btn = ctk.CTkButton(
+                header_frame,
+                text="📂 瀏覽" if key == "folders" else "📄 選擇檔案",
+                font=Fonts.SMALL,
+                fg_color=Colors.SURFACE_VARIANT,
+                hover_color=Colors.PRIMARY_DARK,
+                text_color=Colors.ON_SURFACE,
+                corner_radius=6,
+                width=100,
+                height=28,
+                command=lambda k=key: self._browse_path(k)
+            )
+            browse_btn.pack(side="right")
+        
+        # 提示文字 (根據平台顯示不同內容)
+        if key == "urls":
+            hint_text = "每行一個網址"
+        elif DND_ENABLED:
+            hint_text = "🎯 可拖曳檔案/資料夾到此處，或點擊瀏覽按鈕"
+        else:
+            hint_text = "點擊瀏覽按鈕選擇路徑"
+        
+        hint_label = ctk.CTkLabel(
+            section_frame,
+            text=hint_text,
+            font=("SF Pro Text", 11),
+            text_color=Colors.PRIMARY_LIGHT if DND_ENABLED and key != "urls" else Colors.ON_SURFACE_VARIANT
+        )
+        hint_label.pack(anchor="w", pady=(2, 0))
+        
+        # 文字輸入區
         textbox = ctk.CTkTextbox(
             section_frame,
             font=Fonts.SMALL,
@@ -310,8 +359,68 @@ class EditDialog(ctk.CTkToplevel):
         textbox.pack(fill="x", pady=(5, 0))
         textbox.insert("1.0", "\n".join(items))
         
+        # Windows 拖曳支援
+        if DND_ENABLED and key != "urls":
+            try:
+                # 取得內部的 tkinter Text widget
+                inner_textbox = textbox._textbox
+                inner_textbox.drop_target_register(DND_FILES)
+                inner_textbox.dnd_bind('<<Drop>>', lambda e, k=key: self._on_drop(e, k))
+            except Exception as e:
+                print(f"拖曳功能初始化失敗: {e}")
+        
         # 儲存參考
         setattr(self, f"{key}_textbox", textbox)
+    
+    def _browse_path(self, key: str):
+        """開啟檔案/資料夾選擇對話框"""
+        from tkinter import filedialog
+        
+        if key == "folders":
+            path = filedialog.askdirectory(title="選擇資料夾")
+        else:  # files
+            path = filedialog.askopenfilename(title="選擇檔案")
+        
+        if path:
+            textbox = getattr(self, f"{key}_textbox")
+            current_text = textbox.get("1.0", "end-1c").strip()
+            if current_text:
+                textbox.insert("end", f"\n{path}")
+            else:
+                textbox.delete("1.0", "end")
+                textbox.insert("1.0", path)
+    
+    def _on_drop(self, event, key: str):
+        """處理拖曳放置事件 (Windows)"""
+        # 解析拖曳的檔案路徑
+        dropped_data = event.data
+        
+        # Windows 拖曳的格式可能是 {path1} {path2} 或用空格分隔
+        # 需要處理含有空格的路徑
+        paths = []
+        
+        if dropped_data.startswith("{"):
+            # 格式: {C:\path\to\file} {D:\another\path}
+            import re
+            paths = re.findall(r'\{([^}]+)\}', dropped_data)
+        else:
+            # 單一路徑或空格分隔
+            paths = [dropped_data.strip()]
+        
+        if paths:
+            textbox = getattr(self, f"{key}_textbox")
+            current_text = textbox.get("1.0", "end-1c").strip()
+            
+            for path in paths:
+                path = path.strip()
+                if path:
+                    if current_text:
+                        textbox.insert("end", f"\n{path}")
+                        current_text = textbox.get("1.0", "end-1c").strip()
+                    else:
+                        textbox.delete("1.0", "end")
+                        textbox.insert("1.0", path)
+                        current_text = path
     
     def _save(self):
         """儲存工作區"""
