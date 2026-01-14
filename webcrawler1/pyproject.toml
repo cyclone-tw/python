@@ -1,0 +1,19 @@
+[project]
+name = "ai-pulse-monitor"
+version = "0.1.0"
+description = "AI 新聞自動化抓取與摘要系統"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "crawl4ai>=0.4.0",
+    "playwright>=1.40.0",
+    "aiosqlite>=0.20.0",
+    "feedparser>=6.0.0",
+]
+
+[project.scripts]
+ai-pulse = "ai_pulse_monitor.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
