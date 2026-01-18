@@ -1,0 +1,45 @@
+name: GitHub AI Tracker
+
+on:
+  # 定時執行：台北時間每週一早上 6 點 (UTC 週日 22:00)
+  schedule:
+    - cron: '0 22 * * 0'
+
+  # 手動觸發（方便測試）
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+
+    # 設定工作目錄為子資料夾
+    defaults:
+      run:
+        working-directory: github-ai-tracker
+
+    steps:
+      # 1. 取得程式碼
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 安裝 Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. 安裝 uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      # 4. 安裝依賴
+      - name: Install dependencies
+        run: uv sync
+
+      # 5. 執行爬蟲
+      - name: Run crawler
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_API_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: uv run python -m src.main
