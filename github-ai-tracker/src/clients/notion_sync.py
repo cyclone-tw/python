@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from notion_client import Client
+import notion_client
 
 from src.config import NOTION_TOKEN, NOTION_DATABASE_ID, ECOSYSTEM_DISPLAY_NAMES, NOTION_RATE_LIMIT_DELAY
 from src.models.repository import Repository
@@ -21,8 +21,20 @@ class NotionSync:
     ):
         self.token = token or NOTION_TOKEN
         self.database_id = database_id or NOTION_DATABASE_ID
-        self.client = Client(auth=self.token)
+        self.client = notion_client.Client(auth=self.token)
         self.existing_pages: dict[str, dict[str, Any]] = {}  # {full_name: {page_id, updated_at, stars}}
+
+    def _query_database(self, start_cursor: str | None = None) -> dict:
+        """直接呼叫 Notion API 查詢資料庫（繞過 SDK 限制）"""
+        body: dict[str, Any] = {}
+        if start_cursor:
+            body["start_cursor"] = start_cursor
+
+        return self.client.request(
+            path=f"databases/{self.database_id}/query",
+            method="POST",
+            body=body,
+        )
 
     def load_existing_pages(self) -> None:
         """載入 Notion 資料庫中現有的所有專案"""
@@ -33,10 +45,7 @@ class NotionSync:
         logger.info("Loading existing pages from Notion...")
 
         while has_more:
-            response = self.client.databases.query(
-                database_id=self.database_id,
-                start_cursor=start_cursor,
-            )
+            response = self._query_database(start_cursor=start_cursor)
             results.extend(response["results"])
             has_more = response["has_more"]
             start_cursor = response.get("next_cursor")
