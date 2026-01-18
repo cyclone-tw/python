@@ -17,6 +17,9 @@ ENV/
 # macOS
 .DS_Store
 
+# Claude Code
+.claude/
+
 # 資料檔案（可選擇是否排除）
 data/articles.db
 data/articles/**/*.md

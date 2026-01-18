@@ -11,13 +11,35 @@
 |------|------|
 | 專案名稱 | AI Pulse Monitor |
 | 目的 | 自動抓取 AI 新聞並轉換為結構化 Markdown |
-| 當前版本 | 0.2.0 |
+| 當前版本 | 0.2.1 |
 | 主要語言 | Python 3.11+ |
 | 套件管理 | uv |
 
 ---
 
 ## 版本歷史
+
+### [0.2.1] - 2026-01-18
+
+#### 新增：macOS 一鍵執行腳本
+
+**檔案位置**：`run.command`
+
+**功能**：在 macOS 上雙擊即可自動執行文章抓取，無需開啟終端機。
+
+**內容**：
+```bash
+#!/bin/bash
+cd "$(dirname "$0")"
+uv run python -m ai_pulse_monitor.main --sync
+echo ""
+echo "按 Enter 關閉視窗..."
+read
+```
+
+**使用方式**：在 Finder 中雙擊 `run.command` 即可。
+
+---
 
 ### [0.2.0] - 2026-01-14
 

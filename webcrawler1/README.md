@@ -17,6 +17,7 @@ webcrawler1/
 ├── pyproject.toml              # 專案配置與依賴
 ├── README.md
 ├── CHANGELOG.md                # 開發記錄（人類與 AI 可讀）
+├── run.command                 # macOS 一鍵執行腳本
 ├── data/
 │   ├── articles.db             # SQLite 資料庫
 │   └── articles/               # Markdown 文章存放
@@ -51,6 +52,10 @@ uv run python -m ai_pulse_monitor.main --sync
 # 4. 查看狀態
 uv run python -m ai_pulse_monitor.main --status
 ```
+
+### 一鍵執行（macOS）
+
+在 Finder 中雙擊 `run.command` 即可自動抓取文章，無需開啟終端機。
 
 ## CLI 指令
 
