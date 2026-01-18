@@ -11,7 +11,7 @@ from datetime import datetime
 
 from src.config import validate_config, TOPICS
 from src.clients.github_client import GitHubClient
-from src.clients.notion_client import NotionSync
+from src.clients.notion_sync import NotionSync
 from src.utils.logger import logger
 
 
