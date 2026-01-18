@@ -1,11 +1,12 @@
 """Notion API Client for syncing repository data"""
 
+import time
 from datetime import datetime
 from typing import Any
 
 from notion_client import Client
 
-from src.config import NOTION_TOKEN, NOTION_DATABASE_ID, ECOSYSTEM_DISPLAY_NAMES
+from src.config import NOTION_TOKEN, NOTION_DATABASE_ID, ECOSYSTEM_DISPLAY_NAMES, NOTION_RATE_LIMIT_DELAY
 from src.models.repository import Repository
 from src.utils.logger import logger
 
@@ -204,11 +205,17 @@ class NotionSync:
                 else:
                     logger.info(
                         f"[{i}/{len(repos)}] {result.upper()}: {repo.full_name} "
-                        f"(stars: {repo.stargazers_count})"
+                        f"(forks: {repo.forks_count})"
                     )
+
+                # Notion API 速率限制：約 3 requests/秒
+                if result != "skipped":
+                    time.sleep(NOTION_RATE_LIMIT_DELAY)
 
             except Exception as e:
                 logger.error(f"Error syncing {repo.full_name}: {e}")
+                # 遇到錯誤時等待更長時間（可能是速率限制）
+                time.sleep(1)
                 continue
 
         # Step 3: 輸出統計

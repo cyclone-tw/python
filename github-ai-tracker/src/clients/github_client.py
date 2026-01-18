@@ -10,7 +10,7 @@ from src.config import (
     GITHUB_API_BASE_URL,
     GITHUB_API_VERSION,
     TOPICS,
-    MAX_REPOS_PER_TOPIC,
+    MAX_REPOS_PER_ECOSYSTEM,
     REQUEST_TIMEOUT,
     SEARCH_DELAY_SECONDS,
     get_tool_categories,
@@ -33,18 +33,22 @@ class GitHubClient:
         if self.token:
             self.headers["Authorization"] = f"Bearer {self.token}"
 
-    async def search_by_topic(
+    async def _search_repos(
         self,
-        topic: str,
+        query: str,
         ecosystem: EcosystemType,
-        max_results: int = MAX_REPOS_PER_TOPIC,
+        matched_topic: str,
+        sort_by: str = "forks",
+        max_results: int = 100,
     ) -> list[Repository]:
         """
-        根據 topic 搜尋 GitHub repositories
+        執行 GitHub 搜尋
 
         Args:
-            topic: GitHub topic 名稱
+            query: 搜尋查詢字串
             ecosystem: 所屬生態系分類
+            matched_topic: 匹配的 topic 名稱
+            sort_by: 排序方式 (forks, stars, updated)
             max_results: 最大回傳數量
 
         Returns:
@@ -52,14 +56,14 @@ class GitHubClient:
         """
         repos: list[Repository] = []
         page = 1
-        per_page = min(100, max_results)  # GitHub API 最多一次 100 筆
+        per_page = min(100, max_results)
 
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
             while len(repos) < max_results:
                 url = f"{self.base_url}/search/repositories"
                 params = {
-                    "q": f"topic:{topic}",
-                    "sort": "stars",
+                    "q": query,
+                    "sort": sort_by,
                     "order": "desc",
                     "per_page": per_page,
                     "page": page,
@@ -78,107 +82,194 @@ class GitHubClient:
                         if len(repos) >= max_results:
                             break
 
-                        # 計算工具分類
                         repo_topics = item.get("topics", [])
                         tool_categories = get_tool_categories(repo_topics)
 
                         repo = Repository.from_github_response(
                             data=item,
                             ecosystem=ecosystem,
-                            matched_topic=topic,
+                            matched_topic=matched_topic,
                             tool_categories=tool_categories,
                         )
                         repos.append(repo)
 
-                    # 檢查是否還有更多頁
                     total_count = data.get("total_count", 0)
                     if page * per_page >= total_count:
                         break
 
                     page += 1
-
-                    # Rate limit: Search API 每分鐘 30 次
                     await asyncio.sleep(SEARCH_DELAY_SECONDS)
 
                 except httpx.HTTPStatusError as e:
                     if e.response.status_code == 403:
-                        # Rate limit exceeded
-                        logger.warning(f"Rate limit exceeded for topic '{topic}', stopping search")
+                        logger.warning(f"Rate limit exceeded, stopping search")
                         break
                     elif e.response.status_code == 422:
-                        # Validation failed (可能是搜尋語法問題)
-                        logger.warning(f"Search validation failed for topic '{topic}': {e}")
+                        logger.warning(f"Search validation failed: {e}")
                         break
                     else:
-                        logger.error(f"HTTP error searching topic '{topic}': {e}")
+                        logger.error(f"HTTP error: {e}")
                         raise
                 except httpx.RequestError as e:
-                    logger.error(f"Request error searching topic '{topic}': {e}")
+                    logger.error(f"Request error: {e}")
                     raise
 
-        logger.info(f"[{ecosystem}] Found {len(repos)} repositories for topic '{topic}'")
         return repos
 
-    async def search_all_topics(self) -> AsyncGenerator[tuple[str, list[Repository]], None]:
+    async def search_ecosystem(
+        self,
+        ecosystem: EcosystemType,
+        topics: list[str],
+        max_results: int = MAX_REPOS_PER_ECOSYSTEM,
+    ) -> list[Repository]:
         """
-        搜尋所有設定的 topics
+        搜尋單一生態系，合併所有 topics 後取 Fork 數前 N 名
 
-        Yields:
-            (ecosystem, repos) tuple
+        Args:
+            ecosystem: 生態系名稱
+            topics: 該生態系的 topics 列表
+            max_results: 最大回傳數量（預設 50）
+
+        Returns:
+            該生態系 Fork 數前 N 名的 Repository 列表
         """
-        for ecosystem, topics in TOPICS.items():
-            ecosystem_repos: list[Repository] = []
+        all_repos: dict[str, Repository] = {}
 
-            for topic in topics:
-                logger.info(f"[{ecosystem}] Searching topic: {topic}")
+        for topic in topics:
+            logger.info(f"[{ecosystem}] Searching topic: {topic}")
+
+            try:
+                repos = await self._search_repos(
+                    query=f"topic:{topic}",
+                    ecosystem=ecosystem,
+                    matched_topic=topic,
+                    sort_by="forks",
+                    max_results=100,  # 每個 topic 先抓 100 個
+                )
+
+                for repo in repos:
+                    if repo.full_name not in all_repos:
+                        all_repos[repo.full_name] = repo
+                    else:
+                        # 合併 tool_categories
+                        existing = all_repos[repo.full_name]
+                        existing.tool_categories = list(
+                            set(existing.tool_categories + repo.tool_categories)
+                        )
+
+                await asyncio.sleep(SEARCH_DELAY_SECONDS)
+
+            except Exception as e:
+                logger.error(f"Error searching topic '{topic}': {e}")
+                continue
+
+        # 依 Fork 數排序，取前 N 名
+        sorted_repos = sorted(
+            all_repos.values(),
+            key=lambda r: r.forks_count,
+            reverse=True,
+        )[:max_results]
+
+        logger.info(f"[{ecosystem}] Top {len(sorted_repos)} repositories by forks")
+        return sorted_repos
+
+    async def search_chinese_projects(
+        self,
+        max_results: int = MAX_REPOS_PER_ECOSYSTEM,
+    ) -> list[Repository]:
+        """
+        搜尋 README 含有繁體中文的 AI 相關專案
+
+        Returns:
+            繁體中文專案列表（依 Fork 數排序）
+        """
+        logger.info("[chinese_traditional] Searching for Traditional Chinese projects...")
+
+        # 搜尋關鍵字：繁體中文常見詞彙 + AI 相關
+        chinese_keywords = [
+            "繁體中文",
+            "台灣",
+            "中文說明",
+            "Chinese README",
+        ]
+
+        ai_topics = ["llm", "ai", "chatgpt", "gpt", "langchain", "ollama"]
+
+        all_repos: dict[str, Repository] = {}
+
+        for keyword in chinese_keywords:
+            for ai_topic in ai_topics[:3]:  # 限制組合數量
+                query = f"{keyword} {ai_topic} in:readme"
+                logger.info(f"[chinese_traditional] Searching: {keyword} + {ai_topic}")
 
                 try:
-                    repos = await self.search_by_topic(
-                        topic=topic,
-                        ecosystem=ecosystem,  # type: ignore
+                    repos = await self._search_repos(
+                        query=query,
+                        ecosystem="chinese_traditional",  # type: ignore
+                        matched_topic=f"chinese-{ai_topic}",
+                        sort_by="forks",
+                        max_results=30,
                     )
-                    ecosystem_repos.extend(repos)
 
-                    # Rate limit between topics
+                    for repo in repos:
+                        if repo.full_name not in all_repos:
+                            all_repos[repo.full_name] = repo
+
                     await asyncio.sleep(SEARCH_DELAY_SECONDS)
 
                 except Exception as e:
-                    logger.error(f"Error searching topic '{topic}': {e}")
+                    logger.error(f"Error searching Chinese projects: {e}")
                     continue
 
-            yield ecosystem, ecosystem_repos
+        # 依 Fork 數排序
+        sorted_repos = sorted(
+            all_repos.values(),
+            key=lambda r: r.forks_count,
+            reverse=True,
+        )[:max_results]
+
+        logger.info(f"[chinese_traditional] Found {len(sorted_repos)} Traditional Chinese projects")
+        return sorted_repos
 
     async def fetch_all_repositories(self) -> list[Repository]:
         """
-        爬取所有生態系的 repositories 並去重
+        爬取所有生態系的 repositories
 
         Returns:
-            去重後的 Repository 列表，依星星數排序
+            去重後的 Repository 列表，依 Fork 數排序
         """
-        all_repos: dict[str, Repository] = {}  # 使用 full_name 作為 key 去重
+        all_repos: dict[str, Repository] = {}
 
-        async for ecosystem, repos in self.search_all_topics():
+        # 1. 爬取各生態系
+        for ecosystem, topics in TOPICS.items():
+            logger.info(f"{'='*20} {ecosystem} {'='*20}")
+
+            repos = await self.search_ecosystem(
+                ecosystem=ecosystem,  # type: ignore
+                topics=topics,
+            )
+
             for repo in repos:
-                # 如果已存在，保留星星數較高的（或更新的）
-                if repo.full_name in all_repos:
+                if repo.full_name not in all_repos:
+                    all_repos[repo.full_name] = repo
+                else:
                     existing = all_repos[repo.full_name]
-                    # 合併 tool_categories
-                    merged_categories = list(
+                    existing.tool_categories = list(
                         set(existing.tool_categories + repo.tool_categories)
                     )
-                    # 保留較新的資料並合併分類
-                    if repo.updated_at > existing.updated_at:
-                        repo.tool_categories = merged_categories
-                        all_repos[repo.full_name] = repo
-                    else:
-                        existing.tool_categories = merged_categories
-                else:
-                    all_repos[repo.full_name] = repo
 
-        # 依星星數排序
+        # 2. 爬取繁體中文專案
+        logger.info(f"{'='*20} chinese_traditional {'='*20}")
+        chinese_repos = await self.search_chinese_projects()
+
+        for repo in chinese_repos:
+            if repo.full_name not in all_repos:
+                all_repos[repo.full_name] = repo
+
+        # 依 Fork 數排序
         sorted_repos = sorted(
             all_repos.values(),
-            key=lambda r: r.stargazers_count,
+            key=lambda r: r.forks_count,
             reverse=True,
         )
 

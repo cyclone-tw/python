@@ -14,6 +14,7 @@ EcosystemType = Literal[
     "notebooklm",
     "ai_infrastructure",
     "pdf_tools",
+    "chinese_traditional",  # 繁體中文專案
 ]
 
 

@@ -15,9 +15,10 @@ NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID", "")
 
 # ===== App Settings =====
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-MAX_REPOS_PER_TOPIC = int(os.getenv("MAX_REPOS_PER_TOPIC", "50"))
+MAX_REPOS_PER_ECOSYSTEM = int(os.getenv("MAX_REPOS_PER_ECOSYSTEM", "50"))  # 每個生態系取前 50 名
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 SEARCH_DELAY_SECONDS = float(os.getenv("SEARCH_DELAY_SECONDS", "2"))
+NOTION_RATE_LIMIT_DELAY = float(os.getenv("NOTION_RATE_LIMIT_DELAY", "0.35"))  # Notion API 限制約 3 req/s
 
 # ===== GitHub API =====
 GITHUB_API_BASE_URL = "https://api.github.com"
@@ -31,6 +32,7 @@ EcosystemType = Literal[
     "notebooklm",
     "ai_infrastructure",
     "pdf_tools",
+    "chinese_traditional",  # 繁體中文專案
 ]
 
 # ===== Ecosystem Display Names =====
@@ -41,6 +43,7 @@ ECOSYSTEM_DISPLAY_NAMES = {
     "notebooklm": "NotebookLM",
     "ai_infrastructure": "AI Infrastructure",
     "pdf_tools": "PDF Tools",
+    "chinese_traditional": "繁體中文專案",
 }
 
 # ===== Topics Configuration =====
