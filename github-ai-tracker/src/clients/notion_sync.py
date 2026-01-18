@@ -4,11 +4,15 @@ import time
 from datetime import datetime
 from typing import Any
 
-import notion_client
+import httpx
 
 from src.config import NOTION_TOKEN, NOTION_DATABASE_ID, ECOSYSTEM_DISPLAY_NAMES, NOTION_RATE_LIMIT_DELAY
 from src.models.repository import Repository
 from src.utils.logger import logger
+
+# Notion API 設定
+NOTION_API_BASE = "https://api.notion.com/v1"
+NOTION_VERSION = "2022-06-28"
 
 
 class NotionSync:
@@ -20,21 +24,29 @@ class NotionSync:
         database_id: str | None = None,
     ):
         self.token = token or NOTION_TOKEN
-        self.database_id = database_id or NOTION_DATABASE_ID
-        self.client = notion_client.Client(auth=self.token)
-        self.existing_pages: dict[str, dict[str, Any]] = {}  # {full_name: {page_id, updated_at, stars}}
+        self.database_id = (database_id or NOTION_DATABASE_ID).replace("-", "")
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+            "Notion-Version": NOTION_VERSION,
+        }
+        self.existing_pages: dict[str, dict[str, Any]] = {}
+
+    def _request(self, method: str, endpoint: str, json: dict | None = None) -> dict:
+        """發送 Notion API 請求"""
+        url = f"{NOTION_API_BASE}/{endpoint}"
+        with httpx.Client(timeout=30) as client:
+            response = client.request(method, url, headers=self.headers, json=json)
+            response.raise_for_status()
+            return response.json()
 
     def _query_database(self, start_cursor: str | None = None) -> dict:
-        """直接呼叫 Notion API 查詢資料庫（繞過 SDK 限制）"""
+        """查詢 Notion 資料庫"""
         body: dict[str, Any] = {}
         if start_cursor:
             body["start_cursor"] = start_cursor
 
-        return self.client.request(
-            path=f"databases/{self.database_id}/query",
-            method="POST",
-            body=body,
-        )
+        return self._request("POST", f"databases/{self.database_id}/query", json=body)
 
     def load_existing_pages(self) -> None:
         """載入 Notion 資料庫中現有的所有專案"""
@@ -118,17 +130,19 @@ class NotionSync:
 
     def _create_page(self, repo: Repository) -> None:
         """新增頁面到 Notion"""
-        self.client.pages.create(
-            parent={"database_id": self.database_id},
-            properties=self._build_properties(repo, previous_stars=None),
-        )
+        body = {
+            "parent": {"database_id": self.database_id},
+            "properties": self._build_properties(repo, previous_stars=None),
+        }
+        self._request("POST", "pages", json=body)
 
     def _update_page(self, page_id: str, repo: Repository, previous_stars: int | None) -> None:
         """更新現有頁面"""
-        self.client.pages.update(
-            page_id=page_id,
-            properties=self._build_properties(repo, previous_stars),
-        )
+        page_id_clean = page_id.replace("-", "")
+        body = {
+            "properties": self._build_properties(repo, previous_stars),
+        }
+        self._request("PATCH", f"pages/{page_id_clean}", json=body)
 
     def _build_properties(self, repo: Repository, previous_stars: int | None) -> dict:
         """建構 Notion 頁面屬性"""
