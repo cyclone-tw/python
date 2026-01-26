@@ -1,0 +1,33 @@
+# 環境變數檔案（包含敏感資訊）
+.env
+
+# 使用者設定（可能包含 API Key）
+user_settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# Google 認證檔案
+token.pickle
+credentials.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+
+# 暫存檔案
+*.log
+*.tmp

@@ -1,0 +1,36 @@
+=== 原始 Gemini 回應 ===
+```json
+{
+  "refined_subject": "教育部教師研習活動通知",
+  "document_type": "活動通知",
+  "priority": "中",
+  "key_points": [
+    "教育部舉辦教師研習活動",
+    "研習日期為113年12月15日",
+    "鼓勵各校教師踴躍參與"
+  ],
+  "action_items": [
+    {
+      "description": "通知校內教師並鼓勵報名參加研習活動",
+      "deadline": "無明確截止日，建議盡速辦理",
+      "priority": "中"
+    }
+  ],
+  "important
+
+=== 清理後的回應 ===
+{
+  "refined_subject": "教育部教師研習活動通知",
+  "document_type": "活動通知",
+  "priority": "中",
+  "key_points": [
+    "教育部舉辦教師研習活動",
+    "研習日期為113年12月15日",
+    "鼓勵各校教師踴躍參與"
+  ],
+  "action_items": [
+    {
+      "description": "通知校內教師並鼓勵報名參加研習活動",
+      "deadline": "無明確截止日，建議盡速辦理",
+      "priority": "中"
+    }

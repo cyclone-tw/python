@@ -1,0 +1,21 @@
+🔍 處理: 376480000A_1140211977_print.pdf
+🔍 正在處理PDF: 376480000A_1140211977_print.pdf
+   PDF共有 2 頁
+   已處理第 1/2 頁
+   已處理第 2/2 頁
+   ✅ 成功提取文字，共 1311 字元
+   🔍 尋找前綴為 '376480000A' 的附件...
+     ✅ 找到附件: 376480000A_1140203880_ATTACH1.pdf
+     ✅ 找到附件: 376480000A_1140211977_ATTACH1.pdf
+   📎 共找到 2 個附件
+   ✅ 找到 1 個段落，1 個日期，2 個附件
+   📝 準備分析內容，長度: 1098 字元
+   ❌ 分析過程詳細錯誤:
+      Traceback (most recent call last):
+  File "C:\Users\Admin\Claude.ai\Python-公文智能處理系統\modules\gemini_analyzer.py", line 54, in analyze_document
+    prompt = GEMINI_PROMPTS['document_analysis'].format(content=content)
+KeyError: '\n  "refined_subject"'
+
+❌ 分析失敗: 分析過程發生錯誤: '\n  "refined_subject"'
+
+🎉 所有檔案處理完成！

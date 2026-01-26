@@ -1,0 +1,20 @@
+# 公文智能處理系統依賴套件
+
+# Web UI
+flask>=2.0.0
+
+# PDF 處理
+pdfplumber>=0.9.0
+
+# Google AI
+google-generativeai>=0.3.0
+
+# Google API
+google-api-python-client>=2.0.0
+google-auth-httplib2>=0.1.0
+google-auth-oauthlib>=1.0.0
+
+# 基礎套件
+python-dotenv>=1.0.0  # 環境變數管理
+pathlib2>=2.3.0  # Python < 3.4 相容性
+typing>=3.7.0    # 型別提示支援
