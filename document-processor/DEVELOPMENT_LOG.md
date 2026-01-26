@@ -1,5 +1,31 @@
 # 開發紀錄 (Development Log)
 
+## 2026-01-26 功能更新
+
+### 1. 附件掃描修復 — 支援所有檔案格式
+- **問題**: 附件只能偵測 `.pdf` 格式，其他格式（如 `.docx`, `.xlsx`, `.odt`）不會被歸檔。
+- **原因**: `app.py` 第 196 行使用 `glob(f"{prefix}_ATTACH*.pdf")` 只匹配 PDF。
+- **解決**:
+  - 將 glob 改為 `f"{prefix}_ATTACH*"` 匹配所有副檔名。
+  - 將 regex 從 `r'_ATTACH(\d+)\.pdf$'` 改為 `r'_ATTACH(\d+)'`。
+  - 同步修正 `gemini_analyzer.py` 中的 fallback 邏輯。
+
+### 2. API Key UI 設定功能
+- **需求**: 讓使用者可以在網頁介面輸入 API Key，不需手動編輯 `.env` 檔案。
+- **修改**:
+  - `templates/index.html`: 設定 Modal 新增 API Key 輸入欄位、顯示/隱藏按鈕、「記住 API Key」勾選框。
+  - `app.py`:
+    - `GET /api/settings` 回傳 API Key 狀態（已儲存/本次有效/未設定）。
+    - `POST /api/settings` 支援接收並驗證 API Key，即時重新初始化 `GeminiSmartAnalyzer`。
+    - `init_modules()` 優先從 `user_settings.json` 載入已存的 Key。
+  - `gemini_analyzer.py`: 修正 fallback 邏輯，確保空字串不會 fallback 到 `.env`。
+- **安全性**: API Key 僅存放於本機 `user_settings.json`，伺服器綁定 `127.0.0.1`，不會透過網路外洩。
+
+### 3. .gitignore 更新
+- 新增 `user_settings.json` 排除，避免 API Key 被上傳至版控。
+
+---
+
 ## 2026-01-13 開發與除錯紀錄
 
 ### 1. 系統啟動與初始化優化
@@ -45,4 +71,5 @@
 
 ## 待辦事項 / Next Steps
 - [ ] 使用者需自行前往 Google 後台綁定帳單帳戶以解除 API 限制。
-- [ ] 確認歸檔功能在附件多的情況下運作正常。
+- [x] ~~確認歸檔功能在附件多的情況下運作正常。~~ (2026-01-26 已修復，支援所有檔案格式)
+- [x] ~~API Key 可透過 UI 設定。~~ (2026-01-26 完成)

@@ -2,9 +2,14 @@
 
 基於 Google Gemini 2.0 Flash 的智能公文處理系統，提供自動分析、重命名、歸檔和 Google 整合功能。
 
-## 最新更新 (2026-01-13)
+## 最新更新 (2026-01-26)
+- **附件支援擴充**: 附件不再限於 `.pdf`，支援所有檔案格式 (`.docx`, `.xlsx`, `.jpg` 等)。
+- **API Key UI 設定**: 可直接在網頁介面的「設定」中輸入 Gemini API Key，並選擇是否儲存供下次使用。
+- **安全性提升**: API Key 僅在本機存放，不會透過網路傳輸至外部。
+
+### 過往更新 (2026-01-13)
 - **模型升級**: 預設使用 `gemini-2.0-flash` (2025年推薦免費模型)。
-- **掃描邏輯優化**: 僅掃描 `_print.pdf` 結尾的公文本文，並自動關聯同前綴的附件 (`_ATTACHn.pdf`)。
+- **掃描邏輯優化**: 僅掃描 `_print.pdf` 結尾的公文本文，並自動關聯同前綴的附件。
 - **安全性增強**: 支援 `.env` 環境變數管理 API Key。
 
 > **👋 第一次使用？** 請參考 [初始環境設定指南 (SETUP_GUIDE.md)](SETUP_GUIDE.md) 進行安裝與設定。
@@ -69,16 +74,14 @@
 pip install -r requirements.txt
 ```
 
-### 2. 設定 Gemini API (使用 .env)
+### 2. 設定 Gemini API Key
 1. 前往 [Google AI Studio](https://aistudio.google.com/apikey) 取得 API Key
 2. **重要：請務必在 Google Cloud Console 中啟用「帳單帳戶 (Billing Account)」，否則免費額度無法使用 (會出現 limit: 0 錯誤)。**
-3. 複製 `.env.example` 為 `.env`：
-   - Windows: `copy .env.example .env`
-   - Mac/Linux: `cp .env.example .env`
-4. 編輯 `.env` 檔案，填入你的 API Key：
-```ini
-GEMINI_API_KEY=你的_API_KEY
-```
+3. 啟動程式後，點擊右上角「⚙️ 設定」
+4. 在「Gemini API Key」欄位輸入你的 Key
+5. 勾選「記住 API Key」可儲存供下次啟動使用
+
+> **進階用戶**: 也可以使用 `.env` 檔案設定（複製 `.env.example` 為 `.env`，填入 `GEMINI_API_KEY=你的Key`）
 
 ### 3. 設定 Google API（可選）
 1. 前往 [Google Cloud Console](https://console.cloud.google.com/)
