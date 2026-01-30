@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公文智能處理系統</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <header>
+        <div class="header-content">
+            <h1><i class="fas fa-robot"></i> <span class="gradient-text">公文智能處理系統</span></h1>
+            <p>自動化分析、歸檔與行程管理</p>
+        </div>
+        <div class="status-indicators" id="status-bar">
+            <div class="status-badge"><span class="dot"></span> 檢查中...</div>
+        </div>
+        <button onclick="openSettingsModal()" class="btn btn-secondary">
+            <i class="fas fa-cog"></i> 設定
+        </button>
+    </header>
+
+    <main>
+        <div class="controls">
+            <button onclick="scanDocs()" class="btn btn-primary">
+                <i class="fas fa-sync-alt"></i> 重新掃描目錄
+            </button>
+            <button onclick="analyzeAll()" class="btn btn-secondary">
+                <i class="fas fa-magic"></i> 批次分析全部
+            </button>
+            <div style="flex: 1"></div>
+            <button onclick="processSelected()" class="btn btn-success">
+                <i class="fas fa-check-double"></i> 執行選定項目
+            </button>
+        </div>
+
+        <div id="file-list" class="doc-list">
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <p>請點擊「重新掃描目錄」以載入公文</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for details/editing -->
+    <div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal">
+            <h2 id="modal-title"><i class="fas fa-edit"></i> 文件詳情</h2>
+            <div id="modal-content"></div>
+            <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                <button onclick="closeModal(null, true)" class="btn btn-secondary">關閉</button>
+                <button onclick="saveModalChanges()" class="btn btn-primary">儲存變更</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal-overlay" class="modal-overlay" onclick="closeSettingsModal(event)">
+        <div class="modal" style="max-width: 700px;">
+            <h2><i class="fas fa-cog"></i> 系統設定</h2>
+
+            <div class="settings-group">
+                <label><i class="fas fa-key"></i> Gemini API Key</label>
+                <div class="path-input-group">
+                    <input type="password" id="settings-api-key" placeholder="輸入你的 Gemini API Key...">
+                    <button onclick="toggleApiKeyVisibility()" class="btn btn-secondary" id="btn-toggle-key" title="顯示/隱藏">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="settings-save-key" checked>
+                    <label for="settings-save-key" style="font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                        記住 API Key（下次啟動時自動載入）
+                    </label>
+                </div>
+                <div id="api-key-status"></div>
+            </div>
+
+            <div class="settings-group">
+                <label><i class="fas fa-folder-open"></i> 掃描目錄 (來源)</label>
+                <div class="path-input-group">
+                    <input type="text" id="settings-scan-dir" readonly placeholder="選擇掃描目錄...">
+                    <button onclick="openFolderBrowser('scan')" class="btn btn-secondary">瀏覽</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <label><i class="fas fa-archive"></i> 歸檔目錄 (目標)</label>
+                <div class="path-input-group">
+                    <input type="text" id="settings-target-dir" readonly placeholder="選擇歸檔目錄...">
+                    <button onclick="openFolderBrowser('target')" class="btn btn-secondary">瀏覽</button>
+                </div>
+            </div>
+
+            <!-- Notion Section -->
+            <div class="notion-section">
+                <div class="settings-group">
+                    <label><i class="fas fa-database"></i> Notion 整合設定</label>
+                    <div class="input-group" style="margin-bottom: 0.75rem;">
+                        <input type="password" id="settings-notion-token" placeholder="輸入 Notion API Token...">
+                        <button onclick="toggleNotionTokenVisibility()" class="btn btn-secondary" id="btn-toggle-notion" title="顯示/隱藏">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div id="notion-token-status"></div>
+                    <div class="input-group" style="margin-top: 0.75rem;">
+                        <input type="text" id="settings-notion-page-id" placeholder="輸入父頁面 ID...">
+                    </div>
+                    <a href="https://developers.notion.com/docs/create-a-notion-integration" target="_blank" class="help-link">
+                        <i class="fas fa-question-circle"></i> 如何取得 API Token 和頁面 ID？
+                    </a>
+                </div>
+
+                <div class="notion-status" id="notion-status">
+                    <div class="notion-status-item">
+                        <i class="fas fa-circle-xmark"></i> 連線狀態: 未連線
+                    </div>
+                    <div class="notion-status-item">
+                        <i class="fas fa-circle-xmark"></i> 任務資料庫: 未建立
+                    </div>
+                    <div class="notion-status-item">
+                        <i class="fas fa-circle-xmark"></i> 歸檔資料庫: 未建立
+                    </div>
+                </div>
+
+                <button onclick="connectNotion()" class="btn btn-secondary" style="margin-top: 1rem; width: 100%;" id="btn-connect-notion">
+                    <i class="fas fa-plug"></i> 連線並建立資料庫
+                </button>
+            </div>
+
+            <!-- Folder Browser -->
+            <div id="folder-browser" class="folder-browser" style="display: none;">
+                <div class="folder-browser-header">
+                    <span id="browser-title">選擇資料夾</span>
+                    <button onclick="closeFolderBrowser()" class="btn-icon"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="folder-browser-path">
+                    <button onclick="browseParent()" class="btn btn-secondary btn-sm" id="btn-parent">
+                        <i class="fas fa-arrow-up"></i> 上一層
+                    </button>
+                    <span id="current-browse-path">-</span>
+                </div>
+                <div id="folder-list" class="folder-list"></div>
+                <div class="folder-browser-actions">
+                    <button onclick="selectCurrentFolder()" class="btn btn-primary">選擇此資料夾</button>
+                    <button onclick="closeFolderBrowser()" class="btn btn-secondary">取消</button>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                <button onclick="closeSettingsModal(null, true)" class="btn btn-secondary">取消</button>
+                <button onclick="saveSettings()" class="btn btn-primary">儲存設定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        let state = {
+            docs: [],
+            system: {}
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStatus();
+            scanDocs();
+        });
+
+        // ===== Toast Notification System =====
+        function showToast(message, type = 'success', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            const icon = type === 'success' ? 'fa-check-circle' :
+                         type === 'error' ? 'fa-exclamation-circle' :
+                         'fa-info-circle';
+
+            toast.innerHTML = `
+                <i class="fas ${icon}"></i>
+                <span>${message}</span>
+                <button class="toast-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+
+            // Auto remove
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // ===== Status Update =====
+        async function updateStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                state.system = data;
+
+                const sb = document.getElementById('status-bar');
+                sb.innerHTML = `
+                    <div class="status-badge ${data.google_auth ? 'active' : 'clickable'}"
+                         style="${!data.google_auth ? 'cursor:pointer;' : ''}"
+                         onclick="${!data.google_auth ? 'connectGoogle()' : ''}"
+                         title="${!data.google_auth ? '點擊以連線 Google' : '已連線'}">
+                        <span class="dot"></span>
+                        Google: ${data.google_auth ? '已連線' : '未連線'}
+                    </div>
+                    <div class="status-badge ${data.gemini_api ? 'active' : ''}">
+                        <span class="dot"></span>
+                        AI: ${data.gemini_api ? '可用' : '未設定'}
+                    </div>
+                    <div class="status-badge ${data.notion_connected && data.notion_task_db_ready ? 'active' : ''}">
+                        <span class="dot"></span>
+                        Notion: ${data.notion_connected && data.notion_task_db_ready ? '已連線' : '未連線'}
+                    </div>
+                `;
+            } catch (e) {
+                console.error("Status check failed", e);
+            }
+        }
+
+        async function connectGoogle() {
+            const badges = document.querySelectorAll('.status-badge');
+            const btn = badges[0];
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 連線中...';
+
+            try {
+                const res = await fetch('/api/connect_google', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Google 連線成功！', 'success');
+                    updateStatus();
+                } else {
+                    showToast('連線失敗: ' + data.error, 'error');
+                    updateStatus();
+                }
+            } catch (e) {
+                showToast('連線請求失敗', 'error');
+                updateStatus();
+            }
+        }
+
+        // ===== Document Scanning =====
+        async function scanDocs() {
+            const listEl = document.getElementById('file-list');
+            listEl.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>掃描中...</p></div>';
+
+            try {
+                const res = await fetch('/api/scan');
+                const data = await res.json();
+
+                if (data.error) {
+                    listEl.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p style="color:var(--danger)">錯誤: ${data.error}</p></div>`;
+                    return;
+                }
+
+                state.docs = data.files.map(f => ({
+                    ...f,
+                    status: 'scanned',
+                    analysis: null,
+                    doc_info: null,
+                    google_result: null,
+                    selected: true,
+                    action: {
+                        type: 'none',
+                        archive: true
+                    }
+                }));
+
+                renderDocs();
+            } catch (e) {
+                listEl.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p style="color:var(--danger)">掃描失敗: ${e}</p></div>`;
+            }
+        }
+
+        function renderDocs() {
+            const listEl = document.getElementById('file-list');
+            if (state.docs.length === 0) {
+                listEl.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>目前沒有待處理的公文（僅掃描 _print.pdf 結尾的檔案）</p></div>';
+                return;
+            }
+
+            listEl.innerHTML = state.docs.map((doc, idx) => `
+                <div class="doc-card" id="card-${idx}">
+                    <div class="file-icon">
+                        <i class="fas fa-file-pdf"></i>
+                    </div>
+                    <div class="doc-info">
+                        <h3>${doc.name}</h3>
+                        <p>${formatSize(doc.size)} • ${new Date(doc.mtime * 1000).toLocaleString()}</p>
+                        <div class="tags">
+                            <span class="tag tag-primary">公文本文</span>
+                            ${doc.attachment_count > 0 ?
+                    `<span class="tag tag-warning" title="${doc.attachments.map(a => a.name).join('\n')}">
+                                    <i class="fas fa-paperclip"></i> ${doc.attachment_count} 個附件
+                                </span>` :
+                    '<span class="tag tag-secondary">無附件</span>'
+                }
+                        </div>
+                    </div>
+                    <div class="doc-analysis">
+                        ${renderAnalysisInfo(doc)}
+                    </div>
+                    <div class="doc-actions">
+                         ${renderActionControls(doc, idx)}
+                    </div>
+                     <div style="display:flex; justify-content:center;">
+                        <input type="checkbox"
+                            ${doc.selected ? 'checked' : ''}
+                            onchange="toggleSelection(${idx}, this.checked)">
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function renderAnalysisInfo(doc) {
+            if (doc.status === 'analyzing') {
+                return '<div style="color: var(--accent-primary)"><i class="fas fa-spinner fa-spin"></i> AI 分析中...</div>';
+            }
+            if (doc.status === 'scanned') {
+                return '<button class="btn btn-secondary btn-sm" onclick="analyzeSingle(' + state.docs.indexOf(doc) + ')"><i class="fas fa-brain"></i> 開始分析</button>';
+            }
+            if (doc.status === 'analyzed' || doc.status === 'done') {
+                const a = doc.analysis;
+                return `
+                    <div class="analysis-results">
+                        <div class="analysis-subject" onclick="openEditModal(${state.docs.indexOf(doc)})">
+                            <i class="fas fa-pen"></i>${a.refined_subject}
+                        </div>
+                        <div class="tags">
+                            <span class="tag type">${a.document_type}</span>
+                            <span class="tag priority-${a.priority}">${a.priority}</span>
+                        </div>
+                        ${doc.google_result ? '<span style="color:var(--success); font-size:0.8em; display:block; margin-top:5px;"><i class="fas fa-check"></i> 已整合 Google</span>' : ''}
+                        ${doc.notion_synced ? '<span style="color:var(--accent-primary); font-size:0.8em; display:block; margin-top:2px;"><i class="fas fa-check"></i> 已同步 Notion</span>' : ''}
+                    </div>
+                `;
+            }
+            return '';
+        }
+
+        function renderActionControls(doc, idx) {
+            if (doc.status !== 'analyzed' && doc.status !== 'done') return '';
+
+            return `
+                <div style="display:flex; flex-direction:column; gap:0.5rem; width: 100%;">
+                    <select class="action-select" onchange="updateAction(${idx}, 'type', this.value)">
+                        <option value="none" ${doc.action.type === 'none' ? 'selected' : ''}>不建立待辦</option>
+                        <option value="calendar" ${doc.action.type === 'calendar' ? 'selected' : ''}>建立日曆事件</option>
+                        <option value="task" ${doc.action.type === 'task' ? 'selected' : ''}>建立 Tasks 任務</option>
+                    </select>
+                    <label style="font-size:0.8rem; display:flex; align-items:center; gap:0.5rem; cursor:pointer; color:var(--text-secondary);">
+                        <input type="checkbox" ${doc.action.archive ? 'checked' : ''} onchange="updateAction(${idx}, 'archive', this.checked)">
+                        歸檔此文件
+                    </label>
+                </div>
+            `;
+        }
+
+        // ===== Analysis =====
+        async function analyzeSingle(idx) {
+            state.docs[idx].status = 'analyzing';
+            renderDocs();
+
+            try {
+                const res = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: state.docs[idx].path })
+                });
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                state.docs[idx].status = 'analyzed';
+                state.docs[idx].analysis = data.analysis;
+                state.docs[idx].doc_info = data.doc_info;
+
+                const suggestion = data.analysis.google_suggestion.type;
+                state.docs[idx].action.type = suggestion;
+
+            } catch (e) {
+                state.docs[idx].status = 'scanned';
+                showToast('分析失敗: ' + e.message, 'error');
+            }
+            renderDocs();
+        }
+
+        async function analyzeAll() {
+            const toAnalyze = state.docs.map((d, i) => ({ d, i })).filter(item => item.d.status === 'scanned');
+            for (const item of toAnalyze) {
+                await analyzeSingle(item.i);
+            }
+        }
+
+        function toggleSelection(idx, val) {
+            state.docs[idx].selected = val;
+        }
+
+        function updateAction(idx, key, val) {
+            if (key === 'type') state.docs[idx].action.type = val;
+            if (key === 'archive') state.docs[idx].action.archive = val;
+        }
+
+        // ===== Process Selected =====
+        async function processSelected() {
+            const selected = state.docs.filter(d => d.selected && d.status === 'analyzed');
+            if (selected.length === 0) {
+                showToast('沒有選中已分析的項目', 'warning');
+                return;
+            }
+
+            if (!confirm(`即將處理 ${selected.length} 個項目，確定嗎？`)) return;
+
+            for (const doc of selected) {
+                const idx = state.docs.indexOf(doc);
+                const action = doc.action;
+
+                // 1. Google Integration
+                if (action.type !== 'none') {
+                    const endpoint = action.type === 'calendar' ? '/api/google/calendar' : '/api/google/task';
+                    try {
+                        const payload = { analysis: doc.analysis };
+                        if (doc.analysis.google_suggestion.custom_date) {
+                            payload.custom_date = doc.analysis.google_suggestion.custom_date;
+                        }
+
+                        const res = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const result = await res.json();
+                        if (result.success) {
+                            state.docs[idx].google_result = result;
+                            showToast(`已建立 ${action.type === 'calendar' ? '日曆事件' : '任務'}`, 'success');
+
+                            // Check Notion sync result
+                            if (result.notion_sync && result.notion_sync.success) {
+                                state.docs[idx].notion_synced = true;
+                                showToast('已同步到 Notion', 'success');
+                            }
+                        } else {
+                            console.error('Google Error', result.error);
+                            showToast(`整合失敗: ${result.error}`, 'error');
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                }
+
+                // 2. Archive
+                if (action.archive) {
+                    try {
+                        const res = await fetch('/api/archive', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                file_path: doc.path,
+                                doc_info: doc.doc_info,
+                                analysis: doc.analysis,
+                                google_result: state.docs[idx].google_result,
+                                modified_subject: doc.analysis.refined_subject,
+                                attachments: doc.attachments || []
+                            })
+                        });
+                        const result = await res.json();
+                        if (result.success) {
+                            state.docs[idx].status = 'done';
+                            showToast('歸檔完成', 'success');
+
+                            // Check Notion sync result
+                            if (result.notion_sync && result.notion_sync.success) {
+                                state.docs[idx].notion_synced = true;
+                                showToast('歸檔記錄已同步到 Notion', 'success');
+                            }
+                        } else {
+                            showToast(`歸檔失敗: ${result.error}`, 'error');
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                }
+            }
+            renderDocs();
+            showToast('批次處理完成', 'success');
+        }
+
+        // ===== Edit Modal =====
+        let currentModalIdx = -1;
+
+        function openEditModal(idx) {
+            currentModalIdx = idx;
+            const doc = state.docs[idx];
+            const a = doc.analysis;
+
+            const modalContent = document.getElementById('modal-content');
+
+            let datesHtml = '';
+            if (a.important_dates) {
+                datesHtml = a.important_dates.map(d =>
+                    `<div class="tag" style="cursor:pointer" onclick="setModalDate('${d.date}')">${d.date} (${d.description})</div>`
+                ).join('');
+            }
+
+            modalContent.innerHTML = `
+                <div class="settings-group">
+                    <label>主旨 (將用於檔名與標題)</label>
+                    <input type="text" id="edit-subject" value="${a.refined_subject}">
+                </div>
+
+                <div class="settings-group">
+                    <label>日期設定 (YYYY-MM-DD 或 YYYY-MM-DD HH:MM)</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">${datesHtml}</div>
+                    <input type="text" id="edit-date" value="${a.google_suggestion.custom_date || a.google_suggestion.due_date || ''}">
+                </div>
+
+                <div class="settings-group">
+                    <label>AI 摘要</label>
+                    <div style="background:var(--bg-glass); padding:1rem; border-radius:8px; font-size:0.9rem; border:1px solid var(--border-glass);">
+                        ${a.key_points ? a.key_points.map(p => `<div style="margin-bottom:0.5rem;">• ${p}</div>`).join('') : '無摘要'}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('modal-overlay').classList.add('active');
+        }
+
+        function setModalDate(date) {
+            document.getElementById('edit-date').value = date;
+        }
+
+        function saveModalChanges() {
+            if (currentModalIdx === -1) return;
+
+            const subject = document.getElementById('edit-subject').value;
+            const date = document.getElementById('edit-date').value;
+
+            state.docs[currentModalIdx].analysis.refined_subject = subject;
+            if (date) {
+                state.docs[currentModalIdx].analysis.google_suggestion.custom_date = date;
+            }
+
+            closeModal(null, true);
+            renderDocs();
+            showToast('變更已儲存', 'success');
+        }
+
+        function closeModal(e, force) {
+            if (force || e.target.id === 'modal-overlay') {
+                document.getElementById('modal-overlay').classList.remove('active');
+            }
+        }
+
+        // ===== Settings Modal =====
+        let browserTarget = null;
+        let currentBrowsePath = '';
+        let parentBrowsePath = null;
+
+        async function openSettingsModal() {
+            try {
+                const res = await fetch('/api/settings');
+                const settings = await res.json();
+                document.getElementById('settings-scan-dir').value = settings.scan_directory || '';
+                document.getElementById('settings-target-dir').value = settings.target_directory || '';
+
+                // Gemini API Key
+                const keyInput = document.getElementById('settings-api-key');
+                const keyStatus = document.getElementById('api-key-status');
+                const saveKeyCheckbox = document.getElementById('settings-save-key');
+
+                if (settings.has_saved_api_key) {
+                    keyInput.value = '';
+                    keyInput.placeholder = '已儲存 (' + settings.api_key_hint + ')，留空則保持不變';
+                    keyStatus.innerHTML = '<span style="color: var(--success);"><i class="fas fa-check-circle"></i> API Key 已儲存</span>';
+                    saveKeyCheckbox.checked = true;
+                } else if (settings.has_session_api_key) {
+                    keyInput.value = '';
+                    keyInput.placeholder = '本次工作階段已設定，留空則保持不變';
+                    keyStatus.innerHTML = '<span style="color: var(--warning);"><i class="fas fa-info-circle"></i> 僅本次有效，未儲存</span>';
+                    saveKeyCheckbox.checked = false;
+                } else {
+                    keyInput.value = '';
+                    keyInput.placeholder = '輸入你的 Gemini API Key...';
+                    keyStatus.innerHTML = '<span style="color: var(--danger);"><i class="fas fa-exclamation-circle"></i> 尚未設定 API Key</span>';
+                    saveKeyCheckbox.checked = true;
+                }
+
+                // Notion
+                const notionTokenInput = document.getElementById('settings-notion-token');
+                const notionTokenStatus = document.getElementById('notion-token-status');
+                const notionPageIdInput = document.getElementById('settings-notion-page-id');
+
+                if (settings.has_notion_token) {
+                    notionTokenInput.value = '';
+                    notionTokenInput.placeholder = '已儲存 (' + settings.notion_token_hint + ')，留空則保持不變';
+                    notionTokenStatus.innerHTML = '<span style="color: var(--success);"><i class="fas fa-check-circle"></i> Token 已儲存</span>';
+                } else {
+                    notionTokenInput.value = '';
+                    notionTokenInput.placeholder = '輸入 Notion API Token...';
+                    notionTokenStatus.innerHTML = '<span style="color: var(--text-muted);"><i class="fas fa-info-circle"></i> 尚未設定</span>';
+                }
+
+                notionPageIdInput.value = settings.notion_parent_page_id || '';
+
+                // Update Notion status
+                updateNotionStatusDisplay(settings);
+
+            } catch (e) {
+                console.error('Failed to load settings', e);
+            }
+            document.getElementById('settings-modal-overlay').classList.add('active');
+        }
+
+        function updateNotionStatusDisplay(settings) {
+            const statusEl = document.getElementById('notion-status');
+            statusEl.innerHTML = `
+                <div class="notion-status-item">
+                    <i class="fas ${settings.notion_connected ? 'fa-check-circle' : 'fa-circle-xmark'}"></i>
+                    連線狀態: ${settings.notion_connected ? '已連線' : '未連線'}
+                </div>
+                <div class="notion-status-item">
+                    <i class="fas ${settings.notion_task_db_ready ? 'fa-check-circle' : 'fa-circle-xmark'}"></i>
+                    任務資料庫: ${settings.notion_task_db_ready ? '已建立' : '未建立'}
+                </div>
+                <div class="notion-status-item">
+                    <i class="fas ${settings.notion_archive_db_ready ? 'fa-check-circle' : 'fa-circle-xmark'}"></i>
+                    歸檔資料庫: ${settings.notion_archive_db_ready ? '已建立' : '未建立'}
+                </div>
+            `;
+        }
+
+        function toggleApiKeyVisibility() {
+            const input = document.getElementById('settings-api-key');
+            const icon = document.querySelector('#btn-toggle-key i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+
+        function toggleNotionTokenVisibility() {
+            const input = document.getElementById('settings-notion-token');
+            const icon = document.querySelector('#btn-toggle-notion i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+
+        function closeSettingsModal(e, force) {
+            if (force || e.target.id === 'settings-modal-overlay') {
+                document.getElementById('settings-modal-overlay').classList.remove('active');
+                closeFolderBrowser();
+            }
+        }
+
+        async function saveSettings() {
+            const scanDir = document.getElementById('settings-scan-dir').value;
+            const targetDir = document.getElementById('settings-target-dir').value;
+            const apiKey = document.getElementById('settings-api-key').value.trim();
+            const saveKey = document.getElementById('settings-save-key').checked;
+            const notionToken = document.getElementById('settings-notion-token').value.trim();
+            const notionPageId = document.getElementById('settings-notion-page-id').value.trim();
+
+            try {
+                const payload = {
+                    scan_directory: scanDir,
+                    target_directory: targetDir
+                };
+
+                if (apiKey) {
+                    payload.gemini_api_key = apiKey;
+                    payload.save_api_key = saveKey;
+                }
+
+                if (notionToken) {
+                    payload.notion_api_token = notionToken;
+                }
+
+                if (notionPageId) {
+                    payload.notion_parent_page_id = notionPageId;
+                }
+
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('設定已儲存！', 'success');
+                    if (data.api_key_updated) {
+                        showToast('Gemini API Key 已更新', 'success');
+                    }
+                    if (data.notion_updated) {
+                        showToast('Notion Token 已更新', 'success');
+                    }
+                    closeSettingsModal(null, true);
+                    updateStatus();
+                    scanDocs();
+                } else {
+                    showToast('儲存失敗: ' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('儲存失敗: ' + e, 'error');
+            }
+        }
+
+        // ===== Notion Connect =====
+        async function connectNotion() {
+            const btn = document.getElementById('btn-connect-notion');
+            const pageId = document.getElementById('settings-notion-page-id').value.trim();
+
+            if (!pageId) {
+                showToast('請先輸入父頁面 ID', 'warning');
+                return;
+            }
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 連線中...';
+            btn.disabled = true;
+
+            try {
+                // First save the token if provided
+                const notionToken = document.getElementById('settings-notion-token').value.trim();
+                if (notionToken) {
+                    await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ notion_api_token: notionToken })
+                    });
+                }
+
+                // Connect and create databases
+                const res = await fetch('/api/notion/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ parent_page_id: pageId })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast('Notion 連線成功，資料庫已建立！', 'success');
+                    // Refresh settings display
+                    const settingsRes = await fetch('/api/settings');
+                    const settings = await settingsRes.json();
+                    updateNotionStatusDisplay(settings);
+                    updateStatus();
+                } else {
+                    showToast('連線失敗: ' + (data.errors ? data.errors.join(', ') : data.error), 'error');
+                }
+            } catch (e) {
+                showToast('連線失敗: ' + e, 'error');
+            } finally {
+                btn.innerHTML = '<i class="fas fa-plug"></i> 連線並建立資料庫';
+                btn.disabled = false;
+            }
+        }
+
+        // ===== Folder Browser =====
+        async function openFolderBrowser(target) {
+            browserTarget = target;
+            document.getElementById('folder-browser').style.display = 'block';
+            document.getElementById('browser-title').textContent =
+                target === 'scan' ? '選擇掃描目錄' : '選擇歸檔目錄';
+
+            const currentValue = document.getElementById(
+                target === 'scan' ? 'settings-scan-dir' : 'settings-target-dir'
+            ).value;
+
+            await browseTo(currentValue || '');
+        }
+
+        function closeFolderBrowser() {
+            document.getElementById('folder-browser').style.display = 'none';
+            browserTarget = null;
+        }
+
+        async function browseTo(path) {
+            const folderList = document.getElementById('folder-list');
+            folderList.innerHTML = '<div style="text-align:center; padding:1rem;"><i class="fas fa-spinner fa-spin"></i> 載入中...</div>';
+
+            try {
+                const res = await fetch('/api/browse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    folderList.innerHTML = `<div style="color:var(--danger); padding:1rem;">${data.error}</div>`;
+                    return;
+                }
+
+                currentBrowsePath = data.current_path || '';
+                parentBrowsePath = data.parent_path;
+
+                document.getElementById('current-browse-path').textContent = currentBrowsePath || '選擇磁碟機';
+                document.getElementById('btn-parent').disabled = !parentBrowsePath;
+
+                if (data.folders.length === 0) {
+                    folderList.innerHTML = '<div style="color:var(--text-secondary); padding:1rem; text-align:center;">此資料夾沒有子目錄</div>';
+                } else {
+                    folderList.innerHTML = data.folders.map(f => `
+                        <div class="folder-item" onclick="browseTo('${f.path.replace(/\\/g, '\\\\')}')">
+                            <i class="fas ${f.is_drive ? 'fa-hdd' : 'fa-folder'}"></i>
+                            ${f.name}
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                folderList.innerHTML = `<div style="color:var(--danger); padding:1rem;">載入失敗: ${e}</div>`;
+            }
+        }
+
+        function browseParent() {
+            if (parentBrowsePath) {
+                browseTo(parentBrowsePath);
+            }
+        }
+
+        function selectCurrentFolder() {
+            if (!currentBrowsePath) {
+                showToast('請先選擇一個資料夾', 'warning');
+                return;
+            }
+
+            const inputId = browserTarget === 'scan' ? 'settings-scan-dir' : 'settings-target-dir';
+            document.getElementById(inputId).value = currentBrowsePath;
+            closeFolderBrowser();
+        }
+    </script>
+</body>
+
+</html>

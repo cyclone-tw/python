@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git restore:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nchore: 清理專案結構，移除測試與廢棄檔案\n\n- 刪除 GOOGLE_AUTH_TROUBLESHOOTING.md 故障排除文件\n- 更新 .gitignore 加入 .claude/, _deprecated_files/, demo_*.html, test_*.py\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: 修正 Notion 資料庫屬性名稱\n\n- 將標題欄位從 \"標題\" 改為 \"Name\"（Notion 預設的 title 屬性名稱）\n- 修正 add_task_entry 和 add_archive_entry 方法\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(robocopy:*)",
+      "Bash(powershell -Command:*)"
+    ]
+  }
+}
